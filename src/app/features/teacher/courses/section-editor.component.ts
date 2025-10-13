@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { LessonApi } from '../../../api/client/lesson.api';
-import { LessonAssignmentApi } from '../../../api/client/lesson-assignment.api';
 import { ReactiveFormsModule, FormBuilder, Validators, FormsModule } from '@angular/forms';
 import { DocumentService, DocumentUploadResponse, UploadProgress } from '../../../api/client/document.service';
 
@@ -70,19 +69,6 @@ import { DocumentService, DocumentUploadResponse, UploadProgress } from '../../.
         <div class="mt-4">
           <div class="font-semibold mb-1">Nội dung bài học</div>
           <div class="text-gray-800 whitespace-pre-line">{{ s.content || 'Chưa có nội dung.' }}</div>
-        </div>
-
-        <!-- Assign lesson to a student -->
-        <div class="mt-6 p-4 border rounded">
-          <div class="font-semibold mb-2">Phân phối bài học cho một học viên</div>
-          <form [formGroup]="assignForm" class="flex flex-wrap items-center gap-2">
-            <input class="border rounded px-3 py-2 w-72" formControlName="studentId" placeholder="Nhập User ID của học viên (UUID)" />
-            <button type="button" class="px-3 py-2 bg-blue-600 text-white rounded disabled:opacity-50" [disabled]="assignForm.invalid" (click)="assignToStudent(s.id)">Phân phối</button>
-            <button type="button" class="px-3 py-2 border rounded" [disabled]="assignForm.invalid" (click)="unassignFromStudent(s.id)">Hủy phân phối</button>
-          </form>
-          <div class="text-sm text-gray-600 mt-2">Tip: tạm thời nhập trực tiếp UUID của học viên để test nhanh. Sẽ nâng cấp thành autocomplete sau.</div>
-          <div class="text-red-600 mt-2" *ngIf="assignError()">{{ assignError() }}</div>
-          <div class="text-green-700 mt-2" *ngIf="assignOk()">{{ assignOk() }}</div>
         </div>
       </div>
 
@@ -186,7 +172,6 @@ import { DocumentService, DocumentUploadResponse, UploadProgress } from '../../.
 export class SectionEditorComponent {
   private route = inject(ActivatedRoute);
   private lessonApi = inject(LessonApi);
-  private lessonAssignApi = inject(LessonAssignmentApi);
   private fb = inject(FormBuilder);
   private sanitizer = inject(DomSanitizer);
   private documentService = inject(DocumentService);
@@ -199,8 +184,6 @@ export class SectionEditorComponent {
   editingId = signal<string | null>(null);
   selected = signal<any | null>(null);
   private _sanitizedEmbed = signal<SafeResourceUrl | null>(null);
-  assignError = signal<string>('');
-  assignOk = signal<string>('');
 
   // Document upload signals
   uploadProgress = signal<UploadProgress | null>(null);
@@ -218,10 +201,6 @@ export class SectionEditorComponent {
     content: [''],
     videoUrl: [''],
     durationMinutes: [0]
-  });
-
-  assignForm = this.fb.group({
-    studentId: ['', [Validators.required]]
   });
 
   constructor() {
@@ -304,9 +283,6 @@ export class SectionEditorComponent {
   closeViewer() {
     this.selected.set(null);
     this._sanitizedEmbed.set(null);
-    this.assignError.set('');
-    this.assignOk.set('');
-    this.assignForm.reset({ studentId: '' });
   }
 
   sanitizedEmbed() {
@@ -338,27 +314,6 @@ export class SectionEditorComponent {
       }
     } catch {}
     return url; // fallback
-  }
-
-  // --- Assignments ---
-  assignToStudent(lessonId: string) {
-    const studentId = this.assignForm.value.studentId as string;
-    if (!studentId) return;
-    this.assignError.set(''); this.assignOk.set('');
-    this.lessonAssignApi.assign(lessonId, studentId).subscribe({
-      next: () => this.assignOk.set('Phân phối bài học thành công.'),
-      error: (err) => this.assignError.set(err?.message || 'Phân phối thất bại')
-    });
-  }
-
-  unassignFromStudent(lessonId: string) {
-    const studentId = this.assignForm.value.studentId as string;
-    if (!studentId) return;
-    this.assignError.set(''); this.assignOk.set('');
-    this.lessonAssignApi.unassign(lessonId, studentId).subscribe({
-      next: () => this.assignOk.set('Đã hủy phân phối bài học.'),
-      error: (err) => this.assignError.set(err?.message || 'Hủy phân phối thất bại')
-    });
   }
 
   // --- Document Upload Methods ---
