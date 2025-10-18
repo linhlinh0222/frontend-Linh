@@ -67,6 +67,28 @@ export class ApiClient {
     );
   }
 
+  putWithResponse<T>(endpoint: string, data: any, options?: any): Observable<ApiResponse<T>> {
+    return this.http.put<ApiResponse<T>>(`${this.baseUrl}${endpoint}`, data, options).pipe(
+      map(response => response as unknown as ApiResponse<T>),
+      catchError(this.handleError)
+    );
+  }
+
+  patchWithResponse<T>(endpoint: string, data: any, options?: any): Observable<ApiResponse<T>> {
+    return this.http.patch<ApiResponse<T>>(`${this.baseUrl}${endpoint}`, data, options).pipe(
+      map(response => response as unknown as ApiResponse<T>),
+      catchError(this.handleError)
+    );
+  }
+
+  deleteWithResponse<T>(endpoint: string, options?: any): Observable<ApiResponse<T>> {
+    const opts = { responseType: 'json' as const, ...options };
+    return this.http.delete(`${this.baseUrl}${endpoint}`, opts).pipe(
+      map((response: any) => response as ApiResponse<T>),
+      catchError(this.handleError)
+    );
+  }
+
   private handleError = (error: HttpErrorResponse): Observable<never> => {
     let errorMessage = 'An unknown error occurred';
 

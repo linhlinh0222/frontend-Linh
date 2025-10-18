@@ -3,6 +3,7 @@ import { HttpClient, HttpEvent, HttpEventType, HttpProgressEvent } from '@angula
 import { UploadedFile } from '../models/uploaded-file.model';
 import { Observable, throwError } from 'rxjs';
 import { map, catchError, tap } from 'rxjs/operators';
+import { FileApi, FileUploadResponse } from '../../api/client/file.api';
 
 // Use shared UploadedFile model
 
@@ -28,15 +29,7 @@ export interface FileUploadOptions {
 })
 export class FileUploadService {
   private http = inject(HttpClient);
-
-  // API Configuration
-  private readonly API_BASE_URL = 'https://api.lms-maritime.com/v1';
-  private readonly ENDPOINTS = {
-    upload: '/files/upload',
-    delete: '/files/delete',
-    list: '/files/list',
-    generateThumbnail: '/files/thumbnail'
-  };
+  private fileApi = inject(FileApi);
 
   // Signals for reactive state management
   private _uploadedFiles = signal<UploadedFile[]>([]);
@@ -175,55 +168,54 @@ export class FileUploadService {
     fileId: string,
     onProgress?: (progress: UploadProgress) => void
   ): Promise<UploadedFile> {
-    // Simulate API call with progress tracking
     return new Promise((resolve, reject) => {
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += Math.random() * 20;
-        
-        if (progress >= 100) {
-          progress = 100;
-          clearInterval(interval);
-          
-          // Simulate successful upload
-          const file = formData.get('file') as File;
+      const file = formData.get('file') as File;
+      const category = formData.get('category') as 'assignment' | 'lesson' | 'course' | 'profile' | 'document' || 'document';
+
+      this.fileApi.uploadFile(file, category, (uploadProgress) => {
+        // Update progress
+        this._uploadProgress.update(progressMap => {
+          const newMap = new Map(progressMap);
+          const currentProgress = newMap.get(fileId);
+          if (currentProgress) {
+            newMap.set(fileId, {
+              ...currentProgress,
+              progress: uploadProgress.percentage
+            });
+          }
+          return newMap;
+        });
+
+        // Call progress callback
+        const currentProgress = this._uploadProgress().get(fileId);
+        if (currentProgress && onProgress) {
+          onProgress(currentProgress);
+        }
+      }).subscribe({
+        next: (response: FileUploadResponse) => {
           const uploadedFile: UploadedFile = {
-            id: fileId,
-            url: `https://storage.lms-maritime.com/files/${fileId}`,
-            originalName: file?.name || 'unknown',
-            size: file?.size,
-            mimeType: file?.type,
+            id: response.id,
+            url: response.url,
+            originalName: response.originalName,
+            size: response.size,
+            mimeType: response.mimeType,
+            uploadedAt: response.uploadedAt,
+            thumbnailUrl: response.thumbnailUrl
           } as UploadedFile;
 
           resolve(uploadedFile);
-        } else {
-          // Update progress
-          this._uploadProgress.update(progressMap => {
-            const newMap = new Map(progressMap);
-            const currentProgress = newMap.get(fileId);
-            if (currentProgress) {
-              newMap.set(fileId, {
-                ...currentProgress,
-                progress: Math.round(progress)
-              });
-            }
-            return newMap;
-          });
-
-          // Call progress callback
-          const currentProgress = this._uploadProgress().get(fileId);
-          if (currentProgress && onProgress) {
-            onProgress(currentProgress);
-          }
+        },
+        error: (error) => {
+          reject(error);
         }
-      }, 200);
+      });
     });
   }
 
   // File Management Methods
   async deleteFile(fileId: string): Promise<void> {
     try {
-      await this.simulateApiCall();
+      await this.fileApi.deleteFile(fileId).toPromise();
       
       this._uploadedFiles.update(files => 
         files.filter(file => file.id !== fileId)

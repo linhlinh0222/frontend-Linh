@@ -1,8 +1,11 @@
 export interface UploadedFile {
   id: string;
   url: string;
-  originalName: string; // required string
+  originalName: string;
+  fileName?: string;
   size?: number;
   mimeType?: string;
-  // other optional fields if needed later
+  uploadedAt?: string;
+  category?: string;
+  thumbnailUrl?: string;
 }
